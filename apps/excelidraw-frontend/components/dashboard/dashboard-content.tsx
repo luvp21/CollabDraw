@@ -1,6 +1,5 @@
 "use client"
 
-import { useAuth } from "@/providers/auth-provider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -8,10 +7,20 @@ import { Calendar, Users, Palette, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 
-export function DashboardContent() {
-  const { user } = useAuth()
-  const rooms = user?.room || []
+// Room type
+interface Room {
+  id: string
+  roomName: string
+  createdAt?: string
+  shapes?: unknown[]
+}
 
+// Props type
+interface DashboardContentProps {
+  rooms: Room[]
+}
+
+export function DashboardContent({ rooms }: DashboardContentProps) {
   if (rooms.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center p-6">
@@ -46,7 +55,10 @@ export function DashboardContent() {
                   <CardTitle className="text-lg font-semibold text-gray-900 mb-1">{room.roomName}</CardTitle>
                   <CardDescription className="flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
-                    Created {formatDistanceToNow(new Date(room.createdAt || Date.now()), { addSuffix: true })}
+                    Created{" "}
+                    {formatDistanceToNow(new Date(room.createdAt || Date.now()), {
+                      addSuffix: true,
+                    })}
                   </CardDescription>
                 </div>
                 <Badge variant="secondary" className="ml-2">
