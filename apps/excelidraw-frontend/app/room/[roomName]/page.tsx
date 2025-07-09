@@ -30,21 +30,13 @@ function RoomNotFound() {
   )
 }
 
-const getRoom = async (roomName: string) => {
-  const res = await fetch(`${API_URL}/room/${roomName}`, {
-    method: "GET",
-    cache: "no-store" // optional to prevent SSR caching
-  })
-
-  if (res.status === 200) {
-    const data = await res.json()
-    return data.room
+type PageProps = {
+  params: {
+    roomName: string
   }
-
-  throw new Error("Something went wrong")
 }
 
-const page = async ({ params }: { params: { roomName: string } }) => {
+const Page = async ({ params }: PageProps) => {
   const roomName = params.roomName
   const room = await getRoom(roomName)
 
@@ -55,4 +47,18 @@ const page = async ({ params }: { params: { roomName: string } }) => {
   return <RoomCanvas roomId={room.id} room={room} />
 }
 
-export default page
+export default Page
+
+const getRoom = async (roomName: string) => {
+  const res = await fetch(`${API_URL}/room/${roomName}`, {
+    method: "GET",
+    cache: "no-store"
+  })
+
+  if (res.status === 200) {
+    const data = await res.json()
+    return data.room
+  }
+
+  return null
+}
