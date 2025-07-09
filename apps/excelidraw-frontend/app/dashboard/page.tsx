@@ -4,7 +4,6 @@ import Link from "next/link"
 import { useUser } from "@/hooks/useUser"
 import { DashboardContent } from "@/components/dashboard/dashboard-content"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
-import { ProtectedRoute } from "@/components/auth/protected-route"
 
 const Dashboard = () => {
   const { user, isLoading, error } = useUser()
@@ -55,8 +54,6 @@ const Dashboard = () => {
 
 export default function DashboardPage() {
   return (
-    <ProtectedRoute>
       <Dashboard />
-    </ProtectedRoute>
   )
 }
