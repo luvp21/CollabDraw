@@ -175,6 +175,9 @@ importers:
       '@types/node':
         specifier: ^22.10.7
         version: 22.10.10
+      prisma:
+        specifier: ^6.2.1
+        version: 6.2.1
 
   apps/ws-backend:
     dependencies:
