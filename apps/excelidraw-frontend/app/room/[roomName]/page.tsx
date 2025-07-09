@@ -44,14 +44,11 @@ const getRoom = async (roomName: string) => {
   return null
 }
 
-const Page = async ({ params }: { params: { roomName: string } }) => {
+const Page = async ({ params }: any) => {
   const roomName = params.roomName
   const room = await getRoom(roomName)
 
-  if (!room) {
-    return <RoomNotFound />
-  }
-
+  if (!room) return <RoomNotFound />
   return <RoomCanvas roomId={room.id} room={room} />
 }
 
