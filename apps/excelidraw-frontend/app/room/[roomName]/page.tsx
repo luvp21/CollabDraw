@@ -30,25 +30,6 @@ function RoomNotFound() {
   )
 }
 
-type PageProps = {
-  params: {
-    roomName: string
-  }
-}
-
-const Page = async ({ params }: PageProps) => {
-  const roomName = params.roomName
-  const room = await getRoom(roomName)
-
-  if (!room) {
-    return <RoomNotFound />
-  }
-
-  return <RoomCanvas roomId={room.id} room={room} />
-}
-
-export default Page
-
 const getRoom = async (roomName: string) => {
   const res = await fetch(`${API_URL}/room/${roomName}`, {
     method: "GET",
@@ -62,3 +43,16 @@ const getRoom = async (roomName: string) => {
 
   return null
 }
+
+const Page = async ({ params }: { params: { roomName: string } }) => {
+  const roomName = params.roomName
+  const room = await getRoom(roomName)
+
+  if (!room) {
+    return <RoomNotFound />
+  }
+
+  return <RoomCanvas roomId={room.id} room={room} />
+}
+
+export default Page
