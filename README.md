@@ -254,7 +254,11 @@ CollabDraw/
 
 ## Screenshots / Demo
 
-_Screenshots and demo video will be added here._
+<img width="1920" height="1079" alt="image" src="https://github.com/user-attachments/assets/7fa488cb-c84d-418b-adfb-3a4784046866" />
+<img width="1920" height="1079" alt="image" src="https://github.com/user-attachments/assets/b36f585e-c732-4e8c-8a03-d14e848a1bf7" />
+<img width="1920" height="1049" alt="excalidraw" src="https://github.com/user-attachments/assets/2b0809cf-e752-4c95-a79d-21959b1bbc3b" />
+
+
 
 ## Future Improvements
 
