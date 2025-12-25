@@ -9,7 +9,7 @@ export const RoomCanvas = ({ roomId, room }: { roomId: string, room: any }) => {
 
   useEffect(() => {
     const token = localStorage.getItem("token")
-    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/?token=${token}`)
+    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}?token=${token}`)
 
     const handleOpen = () => {
       setSocket(ws)

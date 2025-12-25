@@ -35,15 +35,10 @@ export function Hero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
           >
-            <Link href="/auth/signup">
+            <Link href="/auth/signin">
               <Button size="lg" className="text-lg px-8">
                 Start Drawing Now
                 <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </Link>
-            <Link href="/auth/signin">
-              <Button variant="outline" size="lg" className="text-lg px-8 bg-transparent">
-                Sign In
               </Button>
             </Link>
           </motion.div>

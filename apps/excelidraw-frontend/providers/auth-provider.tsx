@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { createContext, useContext, useEffect, useState } from "react"
 import type { User } from "@/types/user"
 import { getUser } from "@/actions/auth"
@@ -29,9 +28,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const userData = await getUser()
-      setUser(userData)
+      // Fetch user data directly from API using localStorage token
+      const API_URL = process.env.NEXT_PUBLIC_HTTP_URL || "http://localhost:3001"
+      const response = await fetch(`${API_URL}/user`, {
+        method: "GET",
+        headers: {
+          "Authorization": token,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch user")
+      }
+
+      const data = await response.json()
+
+      if (data.error) {
+        throw new Error(data.error)
+      }
+
+      setUser(data.user)
     } catch (error) {
+      console.error("Error fetching user:", error)
       localStorage.removeItem("token")
       setUser(null)
     } finally {

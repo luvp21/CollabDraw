@@ -11,18 +11,30 @@ declare global{
 }
 
 export const middleware = (req: Request, res: Response , next : NextFunction) => {
-    const token = req.headers["authorization"] ?? ""
+    try {
+        const token = req.headers["authorization"] ?? ""
 
-    const decoded = jwt.verify(token , process.env.JWT_SECRET || "123123") as {userId: string}
+        if (!token) {
+            res.status(403).json({
+                message: "Unauthorized! No token provided."
+            })
+            return
+        }
 
-    if(decoded){
-        req.userId = decoded.userId
-        next()
-    }
-    else{
+        const decoded = jwt.verify(token , process.env.JWT_SECRET || "123123") as {userId: string}
+
+        if(decoded && decoded.userId){
+            req.userId = decoded.userId
+            next()
+        }
+        else{
+            res.status(403).json({
+                message: "Unauthorized! Invalid token."
+            })
+        }
+    } catch (error) {
         res.status(403).json({
-            message: "Unauthorized!"
+            message: "Unauthorized! Invalid or expired token."
         })
     }
-
 }

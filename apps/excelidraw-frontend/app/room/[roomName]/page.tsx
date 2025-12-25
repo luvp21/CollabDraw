@@ -45,7 +45,7 @@ const getRoom = async (roomName: string) => {
 }
 
 const Page = async ({ params }: any) => {
-  const roomName = params.roomName
+  const { roomName } = await params
   const room = await getRoom(roomName)
 
   if (!room) return <RoomNotFound />

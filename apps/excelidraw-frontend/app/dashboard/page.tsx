@@ -1,24 +1,21 @@
 "use client"
 
 import Link from "next/link"
-import { useUser } from "@/hooks/useUser"
+import { useAuth } from "@/providers/auth-provider"
 import { DashboardContent } from "@/components/dashboard/dashboard-content"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 
 const Dashboard = () => {
-  const { user, isLoading, error } = useUser()
+  const { user, isLoading, isAuthenticated } = useAuth()
+  const router = useRouter()
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center">
-        <h1 className="text-3xl font-bold mb-4 text-red-600">Error</h1>
-        <p className="text-xl text-gray-800 mb-6">{error.toString()}</p>
-        <Link href="/" className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors">
-          Go Back Home
-        </Link>
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push("/auth/signin")
+    }
+  }, [isLoading, isAuthenticated, router])
 
   if (isLoading) {
     return (
@@ -28,26 +25,26 @@ const Dashboard = () => {
     )
   }
 
-  if (!user) {
+  if (!user || !isAuthenticated) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center">
         <h1 className="text-3xl font-bold mb-4 text-gray-800">User Not Found</h1>
         <p className="text-xl text-gray-600 mb-6">
           We couldn't find your user information. Please try logging in again.
         </p>
-        <Link href="/login" className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors">
-          Log In
+        <Link href="/auth/signin" className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors">
+          Sign In
         </Link>
       </div>
     )
   }
 
-  const room = user.user.room || []
+  const rooms = user.room || []
 
   return (
     <div className="min-h-screen bg-gray-50">
       <DashboardHeader />
-      <DashboardContent rooms={room} />
+      <DashboardContent rooms={rooms} />
     </div>
   )
 }

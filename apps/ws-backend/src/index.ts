@@ -2,7 +2,10 @@ import {WebSocket, WebSocketServer} from "ws"
 import { checkUser } from "./checkUser";
 import {prismaClient} from "@repo/db/client"
 
-const wss = new WebSocketServer({port: 8080})
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8080
+const wss = new WebSocketServer({port: PORT})
+
+console.log(`WebSocket Server listening on port ${PORT}`)
 
 interface User {
     ws:  WebSocket,
@@ -63,7 +66,7 @@ wss.on("connection", function connection(ws, request){
                 return;
             }
 
-            user.rooms = user.rooms.filter(x => x === parsedData.room)
+            user.rooms = user.rooms.filter(x => x !== parsedData.roomId)
         }
 
         if(parsedData.type === "draw"){
@@ -88,7 +91,7 @@ wss.on("connection", function connection(ws, request){
                     }))
                 }
             })
- 
+
         }
 
 

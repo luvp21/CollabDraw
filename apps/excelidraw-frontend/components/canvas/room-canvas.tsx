@@ -12,14 +12,14 @@ export const RoomCanvas = ({roomId, room}: {roomId: string, room: any}) => {
 
     useEffect(() => {
         const token = localStorage.getItem("token")
-        
+
         if (!token) {
             setConnectionError("No authentication token found")
             setIsConnecting(false)
             return
         }
 
-        const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/?token=${token}`)
+        const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}?token=${token}`)
         wsRef.current = ws
 
         ws.onopen = () => {
@@ -40,7 +40,7 @@ export const RoomCanvas = ({roomId, room}: {roomId: string, room: any}) => {
             console.log("WebSocket disconnected:", event.code, event.reason)
             setSocket(null)
             setIsConnecting(false)
-            
+
             // Only show error if it wasn't a clean disconnect
             if (event.code !== 1000) {
                 setConnectionError("Connection lost")
@@ -82,8 +82,8 @@ export const RoomCanvas = ({roomId, room}: {roomId: string, room: any}) => {
                 <div className="text-center text-red-500">
                     <div className="text-lg font-semibold mb-2">Connection Error</div>
                     <div>{connectionError}</div>
-                    <button 
-                        onClick={() => window.location.reload()} 
+                    <button
+                        onClick={() => window.location.reload()}
                         className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                     >
                         Retry

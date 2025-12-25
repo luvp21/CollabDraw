@@ -9,7 +9,7 @@ import { formatDistanceToNow } from "date-fns"
 
 // Room type
 interface Room {
-  id: string
+  id: number
   roomName: string
   createdAt?: string
   shapes?: unknown[]
