@@ -1,278 +1,120 @@
 # CollabDraw
+> A real-time collaborative whiteboard that lets multiple users sketch, draw, and synchronize shapes on a shared canvas in real-time.
 
-A real-time collaborative drawing application that enables multiple users to draw together on a shared canvas with instant synchronization.
+![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue?style=flat-square&logo=typescript)
+![License](https://img.shields.io/badge/License-ISC-green.svg?style=flat-square)
 
-## Short Description
+## Overview
+CollabDraw resolves the challenge of high-latency and state loss in remote brainstorming sessions by providing a persistence-first, collaborative canvas workspace. Built as a monorepo, the application leverages Next.js 15 for a dynamic user interface and a native Node.js WebSocket backend to broadcast drawings instantly across peers. Drawings are serialized and stored in a PostgreSQL database using Prisma ORM to guarantee that canvas states persist across page refreshes and server updates.
 
-CollabDraw is a full-stack web application that provides a collaborative whiteboard experience. Users can create drawing rooms, invite others, and draw together in real-time with changes synchronized instantly across all connected clients. The application uses Google OAuth for authentication and stores all drawings persistently in a PostgreSQL database. Built as a monorepo with separate services for the frontend, HTTP API, and WebSocket server.
-
-## Features
-
-- **Google OAuth Authentication** - Secure sign-in with Google accounts
-- **Real-time Drawing** - WebSocket-based synchronization for instant updates across all users
-- **Room Management** - Create and join drawing rooms with unique names
-- **Persistent Storage** - All drawings and shapes are saved to the database
-- **User Dashboard** - View and manage all your created rooms
-- **Responsive UI** - Modern interface built with Tailwind CSS and Radix UI components
-- **Type-safe Development** - Full TypeScript implementation across frontend and backend
+## Key Features
+- **Implemented** a math-driven coordinate mapping system inside a custom HTML5 Canvas `DrawingEngine` to translate screen pointer offsets into zoom- and pan-independent world-space vectors.
+- **Engineered** a real-time message router using native Node.js WebSockets (`ws`) to broadcast drawing and erasing shape events among connected clients in isolated rooms.
+- **Designed** a type-safe relational schema in PostgreSQL via Prisma ORM to save serialized vector shapes persistently and link rooms to authenticated users.
+- **Integrated** Google OAuth 2.0 with Passport.js and JWT session tokens, passing the token via connection query parameters to secure the stateful WebSocket handshake.
+- **Structured** a monorepo setup using Turborepo and pnpm workspaces to share Zod validation schemas and TypeScript configurations across front-end and back-end packages.
 
 ## Tech Stack
+| Layer | Technologies |
+|---|---|
+| **Frontend** | Next.js 15, React 19, Tailwind CSS, Radix UI, Framer Motion, React Hook Form |
+| **Backend** | Express.js, Node.js WebSockets (`ws`), Passport.js (Google OAuth 2.0), JSON Web Tokens (JWT) |
+| **Database & ORM** | PostgreSQL, Prisma ORM |
+| **Development & Tooling** | Turborepo, pnpm workspaces, Zod (validation), TypeScript, Prettier |
 
-### Frontend
+`Tech: TypeScript, Next.js, React, Node.js, Express.js, WebSockets, ws, PostgreSQL, Prisma, Tailwind CSS, Turborepo, Zod, Radix UI, Framer Motion, Passport.js, JWT`
 
-- **Next.js 15** - React framework with App Router
-- **TypeScript** - Type-safe development
-- **Tailwind CSS** - Utility-first CSS framework
-- **Radix UI** - Accessible component primitives
-- **Framer Motion** - Animation library
-- **React Hook Form + Zod** - Form validation
+## Architecture
+The application splits HTTP metadata operations and stateful WebSockets into isolated, concurrent processes coordinated via a shared database:
 
-### Backend
+```mermaid
+graph TD
+    Client["🖥️ Next.js 15 Client\n(App Router / HTML5 Canvas API)"]
+    HTTP["Express API Server\n(Port 3001)"]
+    WS["WebSocket Server\n(Port 8080)"]
+    DB[("PostgreSQL DB\n(Prisma ORM)")]
+    Google["Google OAuth 2.0\n(Passport.js)"]
 
-- **Express.js** - HTTP REST API server
-- **WebSocket (ws)** - Real-time bidirectional communication
-- **Passport.js** - Google OAuth authentication strategy
-- **JWT** - Token-based authentication
-- **Express Session** - Session management for OAuth flow
-
-### Database & ORM
-
-- **PostgreSQL** - Relational database
-- **Prisma** - Type-safe ORM with migrations
-
-### Infrastructure & Tooling
-
-- **Turborepo** - Monorepo build system
-- **pnpm** - Fast, disk space efficient package manager
-- **TypeScript** - Shared type definitions across packages
-
-## Project Structure
-
-```
-CollabDraw/
-├── apps/
-│   ├── excelidraw-frontend/    # Next.js frontend application
-│   │   ├── app/                 # Next.js App Router pages
-│   │   ├── components/          # React components
-│   │   ├── actions/             # Server actions
-│   │   ├── hooks/               # Custom React hooks
-│   │   └── providers/           # Context providers
-│   ├── http-backend/            # Express REST API server
-│   │   └── src/
-│   │       ├── index.ts         # Main server file
-│   │       └── middleware.ts   # Authentication middleware
-│   └── ws-backend/              # WebSocket server
-│       └── src/
-│           ├── index.ts         # WebSocket server
-│           └── checkUser.ts     # Token verification
-├── packages/
-│   ├── common/                  # Shared Zod schemas and types
-│   ├── db/                      # Prisma schema and client
-│   │   └── prisma/
-│   │       ├── schema.prisma    # Database schema
-│   │       └── migrations/      # Database migrations
-│   ├── ui/                      # Shared UI components
-│   ├── eslint-config/           # Shared ESLint configuration
-│   └── typescript-config/       # Shared TypeScript configuration
-└── turbo.json                   # Turborepo configuration
+    Client -->|"1. HTTP / REST API"| HTTP
+    Client -->|"2. WS / JSON Events"| WS
+    HTTP -->|"OAuth Login"| Google
+    HTTP -->|"Read/Write Metadata"| DB
+    WS -->|"Save/Delete Shapes"| DB
 ```
 
-## Getting Started
+## Setup & Usage
 
 ### Prerequisites
-
 - **Node.js** >= 18
-- **pnpm** >= 9.0.0 (install with `npm install -g pnpm@9.0.0`)
-- **PostgreSQL** database (local or remote)
+- **pnpm** >= 9.0.0 (configured as `pnpm@9.0.0`)
+- **PostgreSQL** database
 
-### Installation
+### 1. Install Dependencies
+Run the installation command from the repository root:
+```bash
+pnpm install
+```
+This automatically triggers the database client generation defined in the project's postinstall phase.
 
-1. **Clone the repository**
+### 2. Set Up Environment Variables
+Create `.env` configuration files in the respective workspaces:
 
-   ```bash
-   git clone <repository-url>
-   cd CollabDraw
-   ```
+**`apps/excelidraw-frontend/.env`**
+```env
+NEXT_PUBLIC_HTTP_URL=http://localhost:3001
+NEXT_PUBLIC_WS_URL=ws://localhost:8080
+```
 
-2. **Install dependencies**
+**`apps/http-backend/.env`**
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/collabdraw?schema=public"
+JWT_SECRET="your-jwt-secret-key"
+SESSION_SECRET="your-session-secret-key"
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
+GOOGLE_CALLBACK_URL="http://localhost:3001/auth/google/callback"
+FRONTEND_URL="http://localhost:3000"
+PORT=3001
+```
 
-   ```bash
-   pnpm install
-   ```
+**`apps/ws-backend/.env`**
+```env
+JWT_SECRET="your-jwt-secret-key" # Must match HTTP backend secret
+PORT=8080
+```
 
-   This will automatically generate the Prisma client after installation.
+**`packages/db/.env`**
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/collabdraw?schema=public"
+```
 
-3. **Set up environment variables**
+### 3. Run Database Migrations
+Create and apply tables to your database instance:
+```bash
+cd packages/db
+pnpm migrate
+```
 
-   Create `.env` files in each directory based on the provided `.env.example` files:
+### 4. Run Development Servers
+From the root directory, start all services using Turborepo:
+```bash
+pnpm dev
+```
+Services will spawn at:
+- **Frontend App**: `http://localhost:3000`
+- **HTTP REST API**: `http://localhost:3001`
+- **WebSocket Server**: `ws://localhost:8080`
 
-   **`apps/excelidraw-frontend/.env`**
+Other scripts:
+- Build all workspaces: `pnpm build`
+- Lint all workspaces: `pnpm lint`
+- Format code structure: `pnpm format`
 
-   ```env
-   NEXT_PUBLIC_HTTP_URL=http://localhost:3001
-   NEXT_PUBLIC_WS_URL=ws://localhost:8080
-   ```
-
-   **`apps/http-backend/.env`**
-
-   ```env
-   DATABASE_URL="postgresql://user:password@localhost:5432/collabdraw?schema=public"
-   JWT_SECRET="your-secret-key-change-this-in-production"
-   SESSION_SECRET="your-session-secret-change-this-in-production"
-   GOOGLE_CLIENT_ID="your-google-client-id.apps.googleusercontent.com"
-   GOOGLE_CLIENT_SECRET="your-google-client-secret"
-   GOOGLE_CALLBACK_URL="http://localhost:3001/auth/google/callback"
-   FRONTEND_URL="http://localhost:3000"
-   PORT=3001
-   ```
-
-   **`apps/ws-backend/.env`**
-
-   ```env
-   JWT_SECRET="your-secret-key-change-this-in-production"
-   PORT=8080
-   ```
-
-   **`packages/db/.env`** (Required for Prisma migrations)
-
-   ```env
-   DATABASE_URL="postgresql://user:password@localhost:5432/collabdraw?schema=public"
-   ```
-
-   **Important Notes:**
-
-   - The `JWT_SECRET` must be identical in both `http-backend` and `ws-backend`
-   - The `DATABASE_URL` must be identical in both `http-backend` and `packages/db`
-   - You can also place `DATABASE_URL` in a root-level `.env` file
-
-4. **Set up Google OAuth**
-
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a new project or select an existing one
-   - Enable Google+ API
-   - Navigate to "Credentials" → "Create Credentials" → "OAuth client ID"
-   - Choose "Web application"
-   - Add authorized redirect URI: `http://localhost:3001/auth/google/callback`
-   - Copy the Client ID and Client Secret to your `apps/http-backend/.env` file
-
-5. **Set up the database**
-
-   ```bash
-   cd packages/db
-   pnpm generate
-   pnpm migrate
-   ```
-
-6. **Start the development servers**
-
-   From the root directory:
-
-   ```bash
-   pnpm dev
-   ```
-
-   This starts all three servers:
-
-   - Frontend: http://localhost:3000
-   - HTTP Backend: http://localhost:3001
-   - WebSocket Backend: ws://localhost:8080
-
-   Or start them individually in separate terminals:
-
-   ```bash
-   # Terminal 1: Frontend
-   cd apps/excelidraw-frontend && pnpm dev
-
-   # Terminal 2: HTTP Backend
-   cd apps/http-backend && pnpm dev
-
-   # Terminal 3: WebSocket Backend
-   cd apps/ws-backend && pnpm dev
-   ```
-
-## Scripts
-
-### Root Level
-
-- `pnpm dev` - Start all apps in development mode
-- `pnpm build` - Build all apps for production
-- `pnpm lint` - Lint all apps
-- `pnpm format` - Format code with Prettier
-
-### Frontend (`apps/excelidraw-frontend`)
-
-- `pnpm dev` - Start Next.js dev server with Turbopack on port 3000
-- `pnpm build` - Build for production
-- `pnpm start` - Start production server
-- `pnpm lint` - Run ESLint
-- `pnpm check-types` - Type check without emitting files
-
-### HTTP Backend (`apps/http-backend`)
-
-- `pnpm dev` - Start with hot reload using tsx watch
-- `pnpm build` - Compile TypeScript to JavaScript
-- `pnpm start` - Run compiled JavaScript
-
-### WebSocket Backend (`apps/ws-backend`)
-
-- `pnpm dev` - Start with hot reload using tsx watch
-- `pnpm build` - Compile TypeScript to JavaScript
-- `pnpm start` - Run compiled JavaScript
-
-### Database (`packages/db`)
-
-- `pnpm generate` - Generate Prisma Client
-- `pnpm migrate` - Run database migrations in development
-- `pnpm migrate:deploy` - Deploy migrations in production
-
-## Environment Variables
-
-### Frontend (`apps/excelidraw-frontend/.env`)
-
-- `NEXT_PUBLIC_HTTP_URL` - Base URL for the HTTP API backend
-- `NEXT_PUBLIC_WS_URL` - WebSocket server URL
-
-### HTTP Backend (`apps/http-backend/.env`)
-
-- `DATABASE_URL` - PostgreSQL connection string
-- `JWT_SECRET` - Secret key for signing JWT tokens
-- `SESSION_SECRET` - Secret key for Express sessions
-- `GOOGLE_CLIENT_ID` - Google OAuth client ID
-- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
-- `GOOGLE_CALLBACK_URL` - OAuth callback URL
-- `FRONTEND_URL` - Frontend URL for CORS and redirects
-- `PORT` - Server port (default: 3001)
-
-### WebSocket Backend (`apps/ws-backend/.env`)
-
-- `JWT_SECRET` - Secret key for verifying JWT tokens (must match HTTP backend)
-- `PORT` - WebSocket server port (default: 8080)
-
-### Database (`packages/db/.env`)
-
-- `DATABASE_URL` - PostgreSQL connection string (required for migrations)
-
-## Screenshots / Demo
-
-<img width="1920" height="1079" alt="image" src="https://github.com/user-attachments/assets/7fa488cb-c84d-418b-adfb-3a4784046866" />
-<img width="1920" height="1079" alt="image" src="https://github.com/user-attachments/assets/b36f585e-c732-4e8c-8a03-d14e848a1bf7" />
-<img width="1920" height="1049" alt="excalidraw" src="https://github.com/user-attachments/assets/2b0809cf-e752-4c95-a79d-21959b1bbc3b" />
-
-
+## Challenges & Learnings
+- **Infinite Canvas Transformations**: Managing zoom transformations and canvas panning offsets required implementing a custom coordinate mapping algorithm. Directly transforming client-space pointer event coordinates into zoom/pan-independent world-space vectors before saving, and invoking `ctx.setTransform(scale, 0, 0, scale, panX, panY)` before the render pass, was necessary to keep drawings aligned across different client dimensions and view ports.
+- **Stateful Socket Connection Tracking**: Because the WebSocket backend routes canvas shape updates using room registrations, active sockets are tracked in a global array in memory. Handling reconnections and preventing client message drops highlighted the complexities of managing stateful real-time interactions in-memory.
 
 ## Future Improvements
-
-- **User Presence Indicators** - Show who is currently active in a room
-- **Drawing Tools Enhancement** - Add more drawing tools (shapes, text, colors)
-- **Room Permissions** - Add public/private room settings and access control
-- **Drawing History** - Undo/redo functionality and version history
-- **Export Functionality** - Export drawings as images or PDFs
-- **WebSocket Reconnection** - Automatic reconnection logic for dropped connections
-- **Error Handling** - Improved error messages and HTTP status codes
-- **Performance Optimization** - Optimize WebSocket message handling for large drawings
-- **Mobile Support** - Responsive touch controls for mobile devices
-- **Real-time Cursors** - Show other users' cursor positions on the canvas
-
----
-
-**Note**: This is an MVP (Minimum Viable Product). Some features may be incomplete or have known limitations. The application is functional and ready for local development and testing.
+- **Graceful WebSocket connection cleanup**: Implement close listeners on socket channels to purge closed socket records from the server memory.
+- **Robust Exception Handling**: Wrap database writes and deletions inside the WebSocket message handlers in try-catch structures to prevent server runtime failure under database contention.
+- **Distributed Room Pub/Sub**: Integrate Redis Pub/Sub channels to enable the WebSocket layer to scale horizontally across multiple instances.
