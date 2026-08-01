@@ -1,3 +1,5 @@
+"use client"
+
 import { useRef, useEffect, useState } from "react"
 
 interface SquaresProps {
@@ -6,6 +8,7 @@ interface SquaresProps {
   borderColor?: string
   squareSize?: number
   hoverFillColor?: string
+  fadeColor?: string
   className?: string
 }
 
@@ -15,6 +18,7 @@ export function Squares({
   borderColor = "#333",
   squareSize = 40,
   hoverFillColor = "#ffffff",
+  fadeColor,
   className,
 }: SquaresProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -33,9 +37,6 @@ export function Squares({
 
     const ctx = canvas.getContext("2d")
     if (!ctx) return
-
-    // Set canvas background
-    canvas.style.background = "#ffffff"
 
     const resizeCanvas = () => {
       canvas.width = canvas.offsetWidth
@@ -74,19 +75,21 @@ export function Squares({
         }
       }
 
-      const gradient = ctx.createRadialGradient(
-        canvas.width / 2,
-        canvas.height / 2,
-        0,
-        canvas.width / 2,
-        canvas.height / 2,
-        Math.sqrt(Math.pow(canvas.width, 2) + Math.pow(canvas.height, 2)) / 2,
-      )
-      gradient.addColorStop(0, "rgba(255,255, 255, 0)")
-      gradient.addColorStop(1, "#ffffff")
+      if (fadeColor) {
+        const gradient = ctx.createRadialGradient(
+          canvas.width / 2,
+          canvas.height / 2,
+          0,
+          canvas.width / 2,
+          canvas.height / 2,
+          Math.sqrt(Math.pow(canvas.width, 2) + Math.pow(canvas.height, 2)) / 2,
+        )
+        gradient.addColorStop(0, "rgba(0, 0, 0, 0)")
+        gradient.addColorStop(1, fadeColor)
 
-      ctx.fillStyle = gradient
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
+        ctx.fillStyle = gradient
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+      }
     }
 
     const updateAnimation = () => {
@@ -161,7 +164,7 @@ export function Squares({
         cancelAnimationFrame(requestRef.current)
       }
     }
-  }, [direction, speed, borderColor, hoverFillColor, hoveredSquare, squareSize])
+  }, [direction, speed, borderColor, hoverFillColor, fadeColor, hoveredSquare, squareSize])
 
   return (
     <canvas

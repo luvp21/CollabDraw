@@ -12,7 +12,7 @@ export default function RoomNotFound() {
             <Search className="w-6 h-6 text-red-600" />
           </div>
           <CardTitle>Room Not Found</CardTitle>
-          <CardDescription>The room you're looking for doesn't exist or has been deleted.</CardDescription>
+          <CardDescription>The room you&apos;re looking for doesn&apos;t exist or has been deleted.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Link href="/dashboard">

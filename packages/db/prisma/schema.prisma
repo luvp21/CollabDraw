@@ -31,7 +31,10 @@ model Shape {
   roomId    Int
   data    String
   userId  String
+  shapeId String?
 
   room    Room  @relation(fields: [roomId], references: [id])
   user    User  @relation(fields: [userId], references: [id])
+
+  @@index([roomId, shapeId])
 }

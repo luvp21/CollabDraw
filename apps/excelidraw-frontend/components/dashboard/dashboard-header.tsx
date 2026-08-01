@@ -1,8 +1,9 @@
 "use client"
 
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/providers/auth-provider"
-import { LogOut, Plus } from "lucide-react"
+import { LogOut, PenTool, Plus } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -21,15 +22,23 @@ export function DashboardHeader() {
 
   return (
     <>
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
+      <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-lg border-b border-gray-200/60 px-6 py-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">CollabDraw</h1>
-            <p className="text-sm text-gray-600">Welcome back, {user?.name}!</p>
-          </div>
+          <Link href="/" className="flex items-center gap-3 group">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-sm shadow-blue-300 transition-transform group-hover:scale-105">
+              <PenTool className="w-4 h-4" />
+            </span>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900 leading-tight tracking-tight">CollabDraw</h1>
+              <p className="text-sm text-gray-600 leading-tight">Welcome back, {user?.name}!</p>
+            </div>
+          </Link>
 
           <div className="flex items-center gap-4">
-            <Button onClick={() => setShowCreateRoom(true)}>
+            <Button
+              onClick={() => setShowCreateRoom(true)}
+              className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 border-0 shadow-sm shadow-blue-300/50"
+            >
               <Plus className="w-4 h-4 mr-2" />
               New Room
             </Button>

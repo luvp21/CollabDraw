@@ -61,7 +61,7 @@ export function CreateRoomDialog({ open, onOpenChange }: CreateRoomDialogProps) 
         form.reset()
         router.push(`/room/${values.roomName}`)
       }
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Something went wrong. Please try again.",

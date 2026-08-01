@@ -1,15 +1,13 @@
 import { Hero } from "@/components/landing/hero"
-import { Features } from "@/components/landing/features"
-import { Footer } from "@/components/landing/footer"
 import { Navbar } from "@/components/landing/navbar"
+import { HeroBackground } from "@/components/landing/hero-background"
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen">
+    <div className="relative min-h-screen bg-white">
+      <HeroBackground />
       <Navbar />
       <Hero />
-      <Features />
-      <Footer />
     </div>
   )
 }

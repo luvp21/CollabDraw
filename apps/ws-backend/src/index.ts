@@ -43,79 +43,117 @@ wss.on("connection", function connection(ws, request){
 
     ws.on('error', console.error)
 
+    ws.on('close', () => {
+        const index = users.findIndex(u => u.ws === ws)
+        if (index !== -1) {
+            users.splice(index, 1)
+        }
+    })
 
-
+    function broadcastToRoom(roomId: string, payload: unknown) {
+        users.forEach(user => {
+            if (user.rooms.includes(roomId) && user.ws !== ws && user.ws.readyState === WebSocket.OPEN) {
+                try {
+                    user.ws.send(JSON.stringify(payload))
+                } catch (error) {
+                    console.error("Failed to send message to client:", error)
+                }
+            }
+        })
+    }
 
     ws.on('message', async function message(data){
-        let parsedData;
+        try {
+            const parsedData = typeof data !== "string"
+                ? JSON.parse(data.toString())
+                : JSON.parse(data)
 
-        if(typeof data !== "string"){
-            parsedData = JSON.parse(data.toString())
-        }else{
-            parsedData = JSON.parse(data)
-        }
-
-        if(parsedData.type === "join_room"){
-            const user = users.find(x => x.ws === ws )
-            user?.rooms.push(parsedData.roomId)
-        }
-
-        if(parsedData.type === "leave_room"){
-            const user = users.find(x => x.ws === ws)
-            if(!user){
-                return;
+            if(parsedData.type === "join_room"){
+                const user = users.find(x => x.ws === ws )
+                user?.rooms.push(parsedData.roomId)
             }
 
-            user.rooms = user.rooms.filter(x => x !== parsedData.roomId)
-        }
-
-        if(parsedData.type === "draw"){
-            const roomId = parsedData.roomId
-            const data = parsedData.data
-
-            await prismaClient.shape.create({
-                data: {
-                    roomId: Number(roomId),
-                    data,
-                    userId
+            if(parsedData.type === "leave_room"){
+                const user = users.find(x => x.ws === ws)
+                if(!user){
+                    return;
                 }
-            })
 
+                user.rooms = user.rooms.filter(x => x !== parsedData.roomId)
+            }
 
-            users.forEach(user => {
-                if(user.rooms.includes(roomId) && user.ws !== ws){
-                    user.ws.send(JSON.stringify({
-                        type: "draw",
+            if(parsedData.type === "draw"){
+                const roomId = parsedData.roomId
+                const data = parsedData.data
+
+                let shapeId: string | undefined
+                try {
+                    shapeId = JSON.parse(data)?.shape?.id
+                } catch {
+                    shapeId = undefined
+                }
+
+                await prismaClient.shape.create({
+                    data: {
+                        roomId: Number(roomId),
                         data,
-                        roomId
-                    }))
-                }
-            })
+                        userId,
+                        shapeId
+                    }
+                })
 
+                broadcastToRoom(roomId, { type: "draw", data, roomId })
+            }
+
+
+            if(parsedData.type === "erase"){
+                const roomId = parsedData.roomId
+                const data = parsedData.data
+
+                let shapeId: string | undefined
+                try {
+                    shapeId = JSON.parse(data)?.shapeId
+                } catch {
+                    shapeId = undefined
+                }
+
+                if (shapeId) {
+                    await prismaClient.shape.deleteMany({
+                        where: {
+                            roomId: Number(roomId),
+                            shapeId
+                        }
+                    })
+                }
+
+                broadcastToRoom(roomId, { type: "erase", data, roomId })
+            }
+
+            if(parsedData.type === "move"){
+                const roomId = parsedData.roomId
+                const data = parsedData.data
+
+                let shapeId: string | undefined
+                try {
+                    shapeId = JSON.parse(data)?.shape?.id
+                } catch {
+                    shapeId = undefined
+                }
+
+                if (shapeId) {
+                    await prismaClient.shape.updateMany({
+                        where: {
+                            roomId: Number(roomId),
+                            shapeId
+                        },
+                        data: { data }
+                    })
+                }
+
+                broadcastToRoom(roomId, { type: "move", data, roomId })
+            }
+        } catch (error) {
+            console.error("Failed to handle WebSocket message:", error)
         }
-
-
-        if(parsedData.type === "erase"){
-            const roomId = parsedData.roomId
-            const data = parsedData.data
-
-            await prismaClient.shape.deleteMany({
-                where:{
-                    data,
-                    roomId
-                }
-            })
-
-            users.forEach(user => {
-                if(user.rooms.includes(roomId) && user.ws !== ws){
-                    user.ws.send(JSON.stringify({
-                        type: "erase",
-                        data,
-                        roomId
-                    }))
-                }
-            })
-        }
-
     })
 })

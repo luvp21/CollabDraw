@@ -30,7 +30,7 @@ const Dashboard = () => {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center">
         <h1 className="text-3xl font-bold mb-4 text-gray-800">User Not Found</h1>
         <p className="text-xl text-gray-600 mb-6">
-          We couldn't find your user information. Please try logging in again.
+          We couldn&apos;t find your user information. Please try logging in again.
         </p>
         <Link href="/auth/signin" className="px-4 py-2 bg-black text-white rounded hover:bg-gray-800 transition-colors">
           Sign In
@@ -42,7 +42,7 @@ const Dashboard = () => {
   const rooms = user.room || []
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50/40 via-white to-white">
       <DashboardHeader />
       <DashboardContent rooms={rooms} />
     </div>

@@ -18,12 +18,9 @@ import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { useState } from "react";
 
-import { useRouter } from "next/navigation";
-
 export function CreateRoomForm() {
   const [error, setError] = useState("");
-  const [successRoom, setSuccessRoom] = useState<string | null>(null); 
-  const router = useRouter();
+  const [successRoom, setSuccessRoom] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof CreateRoomSchema>>({
     resolver: zodResolver(CreateRoomSchema),

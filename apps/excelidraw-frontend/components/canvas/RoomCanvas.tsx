@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react"
 import { Canvas } from "./canvas"
-import { Toolbar } from "@/components/Toolbar"
+import type { Room } from "@/lib/drawing-engine"
+import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
-export const RoomCanvas = ({ roomId, room }: { roomId: string, room: any }) => {
+export const RoomCanvas = ({ roomId, room }: { roomId: string, room: Room }) => {
   const [socket, setSocket] = useState<WebSocket | null>(null)
 
   useEffect(() => {
@@ -42,7 +43,12 @@ export const RoomCanvas = ({ roomId, room }: { roomId: string, room: any }) => {
   }, [roomId])
 
   if (!socket) {
-    return <div>Connecting to WebSocket...</div>
+    return (
+      <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-white text-gray-500">
+        <LoadingSpinner size="lg" className="text-blue-500" />
+        <p className="text-sm">Connecting to room…</p>
+      </div>
+    )
   }
 
   return (

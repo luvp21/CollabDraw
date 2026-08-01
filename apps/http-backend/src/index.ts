@@ -69,11 +69,12 @@ passport.use(new GoogleStrategy({
         })
       } else {
         // Create new user
+        const emailPrefix = email.split("@")[0]
         user = await prismaClient.user.create({
           data: {
             googleId,
             email,
-            name: name || email.split("@")[0],
+            name: name || emailPrefix || email,
             image: photos?.[0]?.value || null
           }
         })
@@ -153,9 +154,10 @@ app.get("/auth/me", middleware, async (req, res) => {
     })
 
     if (!user) {
-      return res.status(404).json({
+      res.status(404).json({
         error: "User not found"
       })
+      return
     }
 
     res.json({ user })

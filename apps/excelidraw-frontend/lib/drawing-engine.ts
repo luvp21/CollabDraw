@@ -1,11 +1,33 @@
 import type { Shape, Tool, StrokeWidth, StrokeColor, FillColor } from "@/types/canvas"
 
+export interface RawShapeRecord {
+  id: number;
+  data: string;
+  userId: string;
+  shapeId?: string | null;
+}
+
+export interface Room {
+  id: number;
+  roomName: string;
+  userId: string;
+  shape?: RawShapeRecord[];
+}
+
+interface WsMessage {
+  type: string;
+  data: string;
+  roomId?: string;
+  userId?: string;
+}
+
 export class DrawingEngine {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private roomId: string;
   private socket: WebSocket;
   private shapes: Shape[] = [];
+  private redoStack: Shape[] = [];
   private selectedShapeIds: string[] = [];
   
   // Drawing state
@@ -32,18 +54,22 @@ export class DrawingEngine {
     endX: number;
     endY: number;
   } | null = null;
+  private isMovingSelection = false;
+  private hasMovedSelection = false;
   
   // Callbacks
   private onScaleChange: (scale: number) => void;
   private onSelectionChange?: (shapeIds: string[]) => void;
+  private onShapeCountChange?: (count: number) => void;
 
   constructor(
     canvas: HTMLCanvasElement,
     roomId: string,
     socket: WebSocket,
-    initialShapes: any[],
+    initialShapes: RawShapeRecord[],
     onScaleChange: (scale: number) => void,
-    onSelectionChange?: (shapeIds: string[]) => void
+    onSelectionChange?: (shapeIds: string[]) => void,
+    onShapeCountChange?: (count: number) => void
   ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
@@ -51,6 +77,7 @@ export class DrawingEngine {
     this.socket = socket;
     this.onScaleChange = onScaleChange;
     this.onSelectionChange = onSelectionChange;
+    this.onShapeCountChange = onShapeCountChange;
 
     this.setupCanvas();
     this.loadInitialShapes(initialShapes);
@@ -71,13 +98,13 @@ export class DrawingEngine {
     });
   }
 
-  private loadInitialShapes(initialShapes: any[]) {
-    this.shapes = initialShapes.map((shapeData: any) => {
+  private loadInitialShapes(initialShapes: RawShapeRecord[]) {
+    this.shapes = initialShapes.map((shapeData: RawShapeRecord) => {
       try {
         const parsed = JSON.parse(shapeData.data);
         return {
           ...parsed.shape,
-          id: shapeData.id.toString(),
+          id: shapeData.shapeId || shapeData.id.toString(),
           userId: shapeData.userId,
           timestamp: Date.now(),
         };
@@ -111,23 +138,25 @@ export class DrawingEngine {
         case "erase":
           this.handleRemoteErase(data);
           break;
+        case "move":
+          this.handleRemoteMove(data);
+          break;
         case "select":
-          this.handleRemoteSelect(data);
+          this.handleRemoteSelect();
           break;
       }
     });
   }
 
-  private handleRemoteDraw(data: any) {
+  private handleRemoteDraw(data: WsMessage) {
     try {
       const parsed = JSON.parse(data.data);
       const shape = {
         ...parsed.shape,
-        id: `remote-${Date.now()}-${Math.random()}`,
         userId: data.userId || "unknown",
         timestamp: Date.now(),
       };
-      
+
       this.shapes.push(shape);
       this.render();
     } catch (error) {
@@ -135,7 +164,7 @@ export class DrawingEngine {
     }
   }
 
-  private handleRemoteErase(data: any) {
+  private handleRemoteErase(data: WsMessage) {
     try {
       const parsed = JSON.parse(data.data);
       this.shapes = this.shapes.filter(
@@ -147,14 +176,22 @@ export class DrawingEngine {
     }
   }
 
-  private handleRemoteSelect(data: any) {
+  private handleRemoteMove(data: WsMessage) {
     try {
       const parsed = JSON.parse(data.data);
-      // Handle remote selection updates if needed
-      this.render();
+      const updated = parsed.shape;
+      const index = this.shapes.findIndex(s => s.id === updated.id);
+      if (index !== -1) {
+        this.shapes[index] = { ...this.shapes[index], ...updated };
+        this.render();
+      }
     } catch (error) {
-      console.error("Failed to handle remote select:", error);
+      console.error("Failed to handle remote move:", error);
     }
+  }
+
+  private handleRemoteSelect() {
+    this.render();
   }
 
   private handleMouseDown = (e: MouseEvent) => {
@@ -233,7 +270,7 @@ export class DrawingEngine {
 
     switch (this.currentTool) {
       case "select":
-        this.handleSelectMouseUp(point);
+        this.handleSelectMouseUp();
         break;
       case "rectangle":
         this.finishRectangle(point);
@@ -255,7 +292,9 @@ export class DrawingEngine {
     
     if (clickedShape) {
       if (!e.shiftKey) {
-        this.selectedShapeIds = [clickedShape.id];
+        if (!this.selectedShapeIds.includes(clickedShape.id)) {
+          this.selectedShapeIds = [clickedShape.id];
+        }
       } else {
         if (this.selectedShapeIds.includes(clickedShape.id)) {
           this.selectedShapeIds = this.selectedShapeIds.filter(id => id !== clickedShape.id);
@@ -264,6 +303,9 @@ export class DrawingEngine {
         }
       }
       this.onSelectionChange?.(this.selectedShapeIds);
+      this.isDrawing = true;
+      this.isMovingSelection = true;
+      this.hasMovedSelection = false;
     } else {
       if (!e.shiftKey) {
         this.selectedShapeIds = [];
@@ -281,6 +323,19 @@ export class DrawingEngine {
   }
 
   private handleSelectMouseMove(point: { x: number; y: number }) {
+    if (this.isMovingSelection) {
+      const dx = point.x - this.startX;
+      const dy = point.y - this.startY;
+      if (dx !== 0 || dy !== 0) {
+        this.moveSelectedShapes(dx, dy);
+        this.hasMovedSelection = true;
+        this.startX = point.x;
+        this.startY = point.y;
+        this.render();
+      }
+      return;
+    }
+
     if (this.selectionBox) {
       this.selectionBox.endX = point.x;
       this.selectionBox.endY = point.y;
@@ -288,7 +343,35 @@ export class DrawingEngine {
     }
   }
 
-  private handleSelectMouseUp(point: { x: number; y: number }) {
+  private moveSelectedShapes(dx: number, dy: number) {
+    this.shapes.forEach(shape => {
+      if (!this.selectedShapeIds.includes(shape.id)) return;
+
+      shape.x += dx;
+      shape.y += dy;
+      if (shape.type === "line") {
+        shape.width = (shape.width || 0) + dx;
+        shape.height = (shape.height || 0) + dy;
+      }
+      if (shape.points) {
+        shape.points = shape.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+      }
+    });
+  }
+
+  private handleSelectMouseUp() {
+    if (this.isMovingSelection) {
+      if (this.hasMovedSelection) {
+        this.redoStack = [];
+        this.shapes
+          .filter(shape => this.selectedShapeIds.includes(shape.id))
+          .forEach(shape => this.broadcastMove(shape));
+      }
+      this.isMovingSelection = false;
+      this.hasMovedSelection = false;
+      return;
+    }
+
     if (this.selectionBox) {
       const selectedShapes = this.getShapesInSelection(this.selectionBox);
       this.selectedShapeIds = selectedShapes.map(shape => shape.id);
@@ -330,7 +413,7 @@ export class DrawingEngine {
     }
   };
 
-  private handleKeyUp = (e: KeyboardEvent) => {
+  private handleKeyUp = () => {
     // Handle key up events if needed
   };
 
@@ -345,8 +428,9 @@ export class DrawingEngine {
   private getShapeAtPoint(point: { x: number; y: number }): Shape | null {
     // Check shapes in reverse order (top to bottom)
     for (let i = this.shapes.length - 1; i >= 0; i--) {
-      if (this.isPointInShape(point, this.shapes[i])) {
-        return this.shapes[i];
+      const shape = this.shapes[i];
+      if (shape && this.isPointInShape(point, shape)) {
+        return shape;
       }
     }
     return null;
@@ -393,7 +477,7 @@ export class DrawingEngine {
           width: Math.abs((shape.width || 0) - shape.x),
           height: Math.abs((shape.height || 0) - shape.y)
         };
-      case "pencil":
+      case "pencil": {
         if (!shape.points || shape.points.length === 0) {
           return { x: shape.x, y: shape.y, width: 0, height: 0 };
         }
@@ -409,6 +493,7 @@ export class DrawingEngine {
           width: maxX - minX,
           height: maxY - minY
         };
+      }
       default:
         return { x: shape.x, y: shape.y, width: 0, height: 0 };
     }
@@ -443,8 +528,9 @@ export class DrawingEngine {
       userId: "current-user",
       timestamp: Date.now(),
     };
-    
+
     this.shapes.push(shape);
+    this.redoStack = [];
   }
 
   private continuePencilDrawing(point: { x: number; y: number }) {
@@ -458,6 +544,7 @@ export class DrawingEngine {
   private finishPencilDrawing() {
     const currentShape = this.shapes[this.shapes.length - 1];
     if (currentShape && currentShape.type === "pencil") {
+      this.redoStack = [];
       this.broadcastShape(currentShape);
     }
   }
@@ -529,8 +616,9 @@ export class DrawingEngine {
       userId: "current-user",
       timestamp: Date.now(),
     };
-    
+
     this.shapes.push(shape);
+    this.redoStack = [];
     this.broadcastShape(shape);
     this.render();
   }
@@ -554,8 +642,9 @@ export class DrawingEngine {
       userId: "current-user",
       timestamp: Date.now(),
     };
-    
+
     this.shapes.push(shape);
+    this.redoStack = [];
     this.broadcastShape(shape);
     this.render();
   }
@@ -579,6 +668,7 @@ export class DrawingEngine {
     };
     
     this.shapes.push(shape);
+    this.redoStack = [];
     this.broadcastShape(shape);
     this.render();
   }
@@ -603,36 +693,38 @@ export class DrawingEngine {
                point.y >= shape.y - tolerance &&
                point.y <= shape.y + (shape.height || 0) + tolerance;
       
-      case "ellipse":
+      case "ellipse": {
         const dx = point.x - shape.x;
         const dy = point.y - shape.y;
         const rx = (shape.width || 0) + tolerance;
         const ry = (shape.height || 0) + tolerance;
         return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1;
-      
-      case "line":
+      }
+
+      case "line": {
         const lineLength = Math.hypot((shape.width || 0) - shape.x, (shape.height || 0) - shape.y);
         if (lineLength === 0) return false;
-        
+
         const distance = Math.abs(
           ((shape.height || 0) - shape.y) * point.x -
           ((shape.width || 0) - shape.x) * point.y +
           (shape.width || 0) * shape.y -
           (shape.height || 0) * shape.x
         ) / lineLength;
-        
+
         // Check if point is within line segment bounds
         const minX = Math.min(shape.x, shape.width || 0);
         const maxX = Math.max(shape.x, shape.width || 0);
         const minY = Math.min(shape.y, shape.height || 0);
         const maxY = Math.max(shape.y, shape.height || 0);
-        
+
         return distance <= tolerance &&
                point.x >= minX - tolerance &&
                point.x <= maxX + tolerance &&
                point.y >= minY - tolerance &&
                point.y <= maxY + tolerance;
-      
+      }
+
       case "pencil":
         return shape.points?.some(p => 
           Math.hypot(p.x - point.x, p.y - point.y) <= tolerance
@@ -665,7 +757,17 @@ export class DrawingEngine {
     }));
   }
 
+  private broadcastMove(shape: Shape) {
+    this.socket.send(JSON.stringify({
+      type: "move",
+      data: JSON.stringify({ shape }),
+      roomId: this.roomId,
+    }));
+  }
+
   private render() {
+    this.onShapeCountChange?.(this.shapes.length);
+
     // Clear canvas
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -758,7 +860,7 @@ export class DrawingEngine {
       case "pencil":
         if (shape.points && shape.points.length > 1) {
           this.ctx.beginPath();
-          this.ctx.moveTo(shape.points[0].x, shape.points[0].y);
+          this.ctx.moveTo(shape.points[0]!.x, shape.points[0]!.y);
           shape.points.forEach(point => this.ctx.lineTo(point.x, point.y));
           this.ctx.stroke();
         }
@@ -981,7 +1083,7 @@ export class DrawingEngine {
       case "pencil":
         if (shape.points && shape.points.length > 1) {
           ctx.beginPath();
-          ctx.moveTo(shape.points[0].x, shape.points[0].y);
+          ctx.moveTo(shape.points[0]!.x, shape.points[0]!.y);
           shape.points.forEach(point => ctx.lineTo(point.x, point.y));
           ctx.stroke();
         }
@@ -1006,19 +1108,39 @@ export class DrawingEngine {
   }
 
   public undo() {
-    if (this.shapes.length === 0) return;
-    
     const lastShape = this.shapes[this.shapes.length - 1];
+    if (!lastShape) return;
+
     if (lastShape.userId === "current-user") {
       this.shapes.pop();
+      this.redoStack.push(lastShape);
       this.broadcastErase(lastShape);
       this.render();
     }
   }
 
+  public redo() {
+    const shape = this.redoStack.pop();
+    if (!shape) return;
+
+    this.shapes.push(shape);
+    this.broadcastShape(shape);
+    this.render();
+  }
+
+  public canUndo(): boolean {
+    const lastShape = this.shapes[this.shapes.length - 1];
+    return !!lastShape && lastShape.userId === "current-user";
+  }
+
+  public canRedo(): boolean {
+    return this.redoStack.length > 0;
+  }
+
   public duplicateSelected() {
     if (this.selectedShapeIds.length === 0) return;
-    
+
+    this.redoStack = [];
     const selectedShapes = this.shapes.filter(shape => 
       this.selectedShapeIds.includes(shape.id)
     );
@@ -1036,13 +1158,18 @@ export class DrawingEngine {
         timestamp: Date.now(),
       };
       
+      if (shape.type === "line") {
+        newShape.width = (shape.width || 0) + offset;
+        newShape.height = (shape.height || 0) + offset;
+      }
+
       if (shape.points) {
         newShape.points = shape.points.map(p => ({
           x: p.x + offset,
           y: p.y + offset
         }));
       }
-      
+
       newShapes.push(newShape);
       this.shapes.push(newShape);
       this.broadcastShape(newShape);
