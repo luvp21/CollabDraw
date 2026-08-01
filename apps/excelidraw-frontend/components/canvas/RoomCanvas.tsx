@@ -7,36 +7,51 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner"
 
 export const RoomCanvas = ({ roomId, room }: { roomId: string, room: Room }) => {
   const [socket, setSocket] = useState<WebSocket | null>(null)
+  const [isReconnecting, setIsReconnecting] = useState(false)
 
   useEffect(() => {
-    const token = localStorage.getItem("token")
-    const ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}?token=${token}`)
+    let cancelled = false
+    let ws: WebSocket
+    let reconnectTimer: ReturnType<typeof setTimeout>
 
-    const handleOpen = () => {
-      setSocket(ws)
+    const connect = () => {
+      const token = localStorage.getItem("token")
+      ws = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}?token=${token}`)
 
-      const data = JSON.stringify({
-        type: "join_room",
-        roomId
+      ws.addEventListener("open", () => {
+        if (cancelled) return
+
+        setSocket(ws)
+        setIsReconnecting(false)
+        ws.send(JSON.stringify({ type: "join_room", roomId }))
       })
 
-      ws.send(data)
+      // The socket can drop silently (idle timeout, network blip, server
+      // restart). Without this, send() on the dead socket is a silent
+      // no-op and the app looks "connected" while nothing syncs.
+      ws.addEventListener("close", () => {
+        if (cancelled) return
+
+        setSocket(null)
+        setIsReconnecting(true)
+        reconnectTimer = setTimeout(connect, 2000)
+      })
+
+      ws.addEventListener("error", () => {
+        ws.close()
+      })
     }
 
-    ws.addEventListener("open", handleOpen)
+    connect()
 
     return () => {
-      ws.removeEventListener("open", handleOpen)
+      cancelled = true
+      clearTimeout(reconnectTimer)
 
       if (ws.readyState === WebSocket.OPEN) {
-        const leaveData = JSON.stringify({
-          type: "leave_room"
-        })
-
-        ws.send(leaveData)
+        ws.send(JSON.stringify({ type: "leave_room" }))
         ws.close()
       } else {
-        // if not open, just close without sending
         ws.close()
       }
     }
@@ -46,7 +61,7 @@ export const RoomCanvas = ({ roomId, room }: { roomId: string, room: Room }) => 
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-white text-gray-500">
         <LoadingSpinner size="lg" className="text-blue-500" />
-        <p className="text-sm">Connecting to room…</p>
+        <p className="text-sm">{isReconnecting ? "Reconnecting…" : "Connecting to room…"}</p>
       </div>
     )
   }
