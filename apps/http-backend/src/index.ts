@@ -12,8 +12,10 @@ import session from "express-session"
 const app = express()
 
 app.use(express.json())
+const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:3000").replace(/\/+$/, "")
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: frontendUrl,
   credentials: true
 }))
 
@@ -120,7 +122,7 @@ app.get("/auth/google/callback",
     const user = req.user as any
 
     if (!user) {
-      return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/error`)
+      return res.redirect(`${frontendUrl}/auth/error`)
     }
 
     // Generate JWT token
@@ -129,7 +131,7 @@ app.get("/auth/google/callback",
     })
 
     // Redirect to frontend with token
-    res.redirect(`${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/callback?token=${token}`)
+    res.redirect(`${frontendUrl}/auth/callback?token=${token}`)
   }
 )
 
