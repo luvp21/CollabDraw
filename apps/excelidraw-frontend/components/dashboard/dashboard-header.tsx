@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/providers/auth-provider"
-import { LogOut, PenTool, Plus } from "lucide-react"
+import { LogIn, LogOut, PenTool, Plus } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -14,11 +14,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { CreateRoomDialog } from "./create-room-dialog"
+import { JoinRoomDialog } from "./join-room-dialog"
 import { useState } from "react"
 
 export function DashboardHeader() {
   const { user, logout } = useAuth()
   const [showCreateRoom, setShowCreateRoom] = useState(false)
+  const [showJoinRoom, setShowJoinRoom] = useState(false)
 
   return (
     <>
@@ -35,6 +37,11 @@ export function DashboardHeader() {
           </Link>
 
           <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={() => setShowJoinRoom(true)}>
+              <LogIn className="w-4 h-4 mr-2" />
+              Join Room
+            </Button>
+
             <Button
               onClick={() => setShowCreateRoom(true)}
               className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 border-0 shadow-sm shadow-blue-300/50"
@@ -71,6 +78,7 @@ export function DashboardHeader() {
       </header>
 
       <CreateRoomDialog open={showCreateRoom} onOpenChange={setShowCreateRoom} />
+      <JoinRoomDialog open={showJoinRoom} onOpenChange={setShowJoinRoom} />
     </>
   )
 }
