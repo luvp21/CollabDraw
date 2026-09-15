@@ -4,48 +4,53 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 0 0% 99%;
+    --foreground: 240 10% 9%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 240 10% 9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 213 94% 68%;
-    --radius: 0.75rem;
+    --popover-foreground: 240 10% 9%;
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 10% 9%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 243 100% 97%;
+    --accent-foreground: 243 75% 40%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 6% 90%;
+    --input: 240 6% 88%;
+    --ring: 243 75% 65%;
+    --radius: 0.625rem;
+    --chart-1: 243 75% 59%;
+    --chart-2: 199 89% 48%;
+    --chart-3: 27 96% 61%;
+    --chart-4: 158 64% 42%;
+    --chart-5: 330 81% 60%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 94.1%;
+    --background: 240 10% 6%;
+    --foreground: 0 0% 96%;
+    --card: 240 9% 9%;
+    --card-foreground: 0 0% 96%;
+    --popover: 240 9% 9%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 243 85% 67%;
+    --primary-foreground: 240 10% 6%;
+    --secondary: 240 6% 16%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 240 6% 16%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 6% 18%;
+    --accent-foreground: 0 0% 96%;
+    --destructive: 0 63% 42%;
+    --destructive-foreground: 0 0% 96%;
+    --border: 240 6% 18%;
+    --input: 240 6% 20%;
+    --ring: 243 85% 67%;
   }
 }
 
@@ -54,14 +59,24 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background-color: hsl(var(--primary) / 0.18);
+    color: hsl(var(--primary));
+  }
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar, themed from the palette rather than left as a browser default */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -69,12 +84,15 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
-  border-radius: 3px;
+  background: hsl(var(--foreground) / 0.14);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+  background: hsl(var(--foreground) / 0.24);
+  background-clip: content-box;
 }
 
 /* Canvas cursor styles */
@@ -95,15 +113,18 @@
     10 10, auto;
 }
 
-/* Animation classes */
-.fade-in {
-  animation: fadeIn 0.2s ease-in-out;
+/* Dot-grid canvas texture, echoing the real drawing surface's grid on marketing chrome */
+.canvas-grid-texture {
+  background-image: radial-gradient(hsl(var(--foreground) / 0.14) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
-@keyframes fadeIn {
+/* Entrance motion: one authored reveal, applied deliberately per-element rather than
+   scattered as a default on every section. */
+@keyframes reveal-up {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
@@ -111,62 +132,6 @@
   }
 }
 
-.slide-up {
-  animation: slideUp 0.3s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-aurora {
-  animation: aurora 18s ease-in-out infinite alternate;
-}
-
-@keyframes aurora {
-  0% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(4%, 6%) scale(1.08);
-  }
-  100% {
-    transform: translate(-3%, -4%) scale(0.96);
-  }
-}
-
-.animate-gradient-text {
-  background-size: 200% auto;
-  animation: gradientText 5s ease-in-out infinite;
-}
-
-@keyframes gradientText {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-.animate-float {
-  animation: float 5s ease-in-out infinite;
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
+.animate-reveal-up {
+  animation: reveal-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

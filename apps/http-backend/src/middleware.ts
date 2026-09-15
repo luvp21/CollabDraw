@@ -21,7 +21,8 @@ export const middleware = (req: Request, res: Response , next : NextFunction) =>
             return
         }
 
-        const decoded = jwt.verify(token , process.env.JWT_SECRET || "123123") as {userId: string}
+        // JWT_SECRET presence is enforced at server startup (see index.ts).
+        const decoded = jwt.verify(token , process.env.JWT_SECRET as string) as {userId: string}
 
         if(decoded && decoded.userId){
             req.userId = decoded.userId

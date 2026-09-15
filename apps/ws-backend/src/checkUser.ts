@@ -3,11 +3,11 @@ import "dotenv/config"
 
 export const  checkUser = (token: string) : string | null => {
     try {
-        if (!token) {
+        if (!token || !process.env.JWT_SECRET) {
             return null
         }
 
-        const decoded = jwt.verify(token , process.env.JWT_SECRET! || "123123") as {userId :string}
+        const decoded = jwt.verify(token , process.env.JWT_SECRET) as {userId :string}
 
         if(decoded && decoded.userId){
             return decoded.userId

@@ -19,11 +19,12 @@ model User {
 }
 
 model Room {
-  id   Int   @id @default(autoincrement())
-  roomName String
-  userId   String
-  user     User   @relation(fields: [userId], references: [id])
-  shape    Shape[]
+  id        Int      @id @default(autoincrement())
+  roomName  String   @unique
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  shape     Shape[]
 }
 
 model Shape {

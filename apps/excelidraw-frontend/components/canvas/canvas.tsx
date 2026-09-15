@@ -23,11 +23,13 @@ export function Canvas({ roomId, socket, room }: CanvasProps) {
   const { toast } = useToast()
   const [activeTool, setActiveTool] = useState<Tool>("select")
   const [strokeWidth, setStrokeWidth] = useState<StrokeWidth>(2)
-  const [strokeColor, setStrokeColor] = useState<StrokeColor>("#000000")
+  const [strokeColor, setStrokeColor] = useState<StrokeColor>("#1e1e1e")
   const [fillColor, setFillColor] = useState<FillColor>("transparent")
   const [scale, setScale] = useState(100)
   const [shapeCount, setShapeCount] = useState(0)
   const [selectedShapeIds, setSelectedShapeIds] = useState<string[]>([])
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
 
   // Initialize the drawing engine
   useEffect(() => {
@@ -42,7 +44,11 @@ export function Canvas({ roomId, socket, room }: CanvasProps) {
       initialShapes,
       (newScale) => setScale(newScale),
       (shapeIds) => setSelectedShapeIds(shapeIds),
-      (count) => setShapeCount(count)
+      (count) => setShapeCount(count),
+      (nextCanUndo, nextCanRedo) => {
+        setCanUndo(nextCanUndo)
+        setCanRedo(nextCanRedo)
+      }
     )
     engineRef.current = engine
 
@@ -177,6 +183,8 @@ export function Canvas({ roomId, socket, room }: CanvasProps) {
         onToolChange={setActiveTool}
         onUndo={() => engineRef.current?.undo()}
         onRedo={() => engineRef.current?.redo()}
+        canUndo={canUndo}
+        canRedo={canRedo}
         onExport={handleExport}
         onShare={handleShare}
       />

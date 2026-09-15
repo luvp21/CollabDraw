@@ -49,7 +49,7 @@ export const RoomCanvas = ({ roomId, room }: { roomId: string, room: Room }) => 
       clearTimeout(reconnectTimer)
 
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "leave_room" }))
+        ws.send(JSON.stringify({ type: "leave_room", roomId }))
         ws.close()
       } else {
         ws.close()
@@ -59,8 +59,8 @@ export const RoomCanvas = ({ roomId, room }: { roomId: string, room: Room }) => 
 
   if (!socket) {
     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-white text-gray-500">
-        <LoadingSpinner size="lg" className="text-blue-500" />
+      <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background text-muted-foreground">
+        <LoadingSpinner size="lg" className="text-primary" />
         <p className="text-sm">{isReconnecting ? "Reconnecting…" : "Connecting to room…"}</p>
       </div>
     )

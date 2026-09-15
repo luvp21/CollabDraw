@@ -1,4 +1,4 @@
-import { prismaClient } from "@repo/db/client";
+import { prismaClient, Prisma } from "@repo/db/client";
 import express from "express"
 import {CreateRoomSchema} from "@repo/common/types"
 import jwt from "jsonwebtoken"
@@ -8,6 +8,12 @@ import { middleware } from "./middleware";
 import passport from "passport"
 import { Strategy as GoogleStrategy } from "passport-google-oauth20"
 import session from "express-session"
+
+if (!process.env.JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required")
+}
+
+const JWT_SECRET = process.env.JWT_SECRET
 
 const app = express()
 
@@ -126,7 +132,7 @@ app.get("/auth/google/callback",
     }
 
     // Generate JWT token
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET! || "123123", {
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
       expiresIn: "7d"
     })
 
@@ -150,7 +156,15 @@ app.get("/auth/me", middleware, async (req, res) => {
         name: true,
         image: true,
         createdAt: true,
-        room: true,
+        room: {
+          select: {
+            id: true,
+            roomName: true,
+            createdAt: true,
+            userId: true,
+            _count: { select: { shape: true } }
+          }
+        },
         shapes: true
       }
     })
@@ -205,16 +219,30 @@ app.post("/room", middleware , async (req, res)=> {
         return;
     }
 
-    const room = await prismaClient.room.create({
-        data: {
-            roomName,
-            userId
-        }
-    })
+    try {
+        const room = await prismaClient.room.create({
+            data: {
+                roomName,
+                userId
+            }
+        })
 
-    res.json({
-        room
-    })
+        res.json({
+            room
+        })
+    } catch (error) {
+        // Two requests can both pass the findFirst check above before either
+        // insert commits; the DB-level unique constraint is the real guard.
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+            res.status(409).json({
+                error: "Room already exists!"
+            })
+            return;
+        }
+        res.status(500).json({
+            error: "Internal server error"
+        })
+    }
 })
 
 app.get("/room/:roomName", async (req, res)=> {
@@ -247,7 +275,15 @@ app.get("/user", middleware , async (req, res)=>{
             email: true,
             name: true,
             image: true,
-            room: true,
+            room: {
+                select: {
+                    id: true,
+                    roomName: true,
+                    createdAt: true,
+                    userId: true,
+                    _count: { select: { shape: true } }
+                }
+            },
             shapes: true
         }
     })

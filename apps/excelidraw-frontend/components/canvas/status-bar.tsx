@@ -20,7 +20,7 @@ export function StatusBar({ scale, shapeCount, selectedCount, onZoomIn, onZoomOu
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="bg-white/90 backdrop-blur rounded-xl shadow-lg shadow-black/5 border border-gray-200 px-2 py-1.5 flex items-center gap-2 text-xs text-gray-600"
+        className="flex items-center gap-2 rounded-xl border border-border bg-card/95 px-2 py-1.5 text-xs text-muted-foreground shadow-[0_1px_2px_hsl(var(--foreground)/0.04),0_8px_20px_-8px_hsl(var(--foreground)/0.2)] backdrop-blur-md"
       >
         <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onZoomOut} title="Zoom out">
           <Minus className="w-3.5 h-3.5" />
@@ -32,13 +32,13 @@ export function StatusBar({ scale, shapeCount, selectedCount, onZoomIn, onZoomOu
         <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onFitToScreen} title="Fit to screen">
           <Maximize className="w-3.5 h-3.5" />
         </Button>
-        <span className="text-gray-300">•</span>
+        <span className="text-border">•</span>
         <span>
           {shapeCount} shape{shapeCount !== 1 ? "s" : ""}
         </span>
         {selectedCount > 0 && (
           <>
-            <span className="text-gray-300">•</span>
+            <span className="text-border">•</span>
             <span>{selectedCount} selected</span>
           </>
         )}

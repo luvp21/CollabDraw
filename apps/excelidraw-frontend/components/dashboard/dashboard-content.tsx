@@ -1,99 +1,81 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
-import { Calendar, Users, Palette, ArrowRight, Sparkles } from "lucide-react"
+import { ChevronRight, Palette } from "lucide-react"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
-import { cn } from "@/lib/utils"
 
-// Room type
 interface Room {
   id: number
   roomName: string
   createdAt?: string
-  shapes?: unknown[]
+  _count?: { shape: number }
 }
 
-// Props type
 interface DashboardContentProps {
   rooms: Room[]
+  userName?: string
 }
 
-const ACCENTS = [
-  "from-blue-500 to-cyan-400",
-  "from-cyan-500 to-sky-400",
-  "from-sky-500 to-blue-400",
-  "from-blue-400 to-cyan-300",
-]
+export function DashboardContent({ rooms, userName }: DashboardContentProps) {
+  const firstName = userName?.split(" ")[0]
 
-export function DashboardContent({ rooms }: DashboardContentProps) {
   if (rooms.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center p-6 min-h-[70vh]">
-        <div className="w-full max-w-md text-center rounded-2xl border-2 border-dashed border-blue-200 bg-white/60 p-10">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-blue-200">
-            <Palette className="w-8 h-8 text-white" />
+      <div className="container mx-auto px-6 py-10">
+        <PageHeading firstName={firstName} count={0} />
+        <div className="flex min-h-[50vh] flex-col items-center justify-center rounded-xl border border-dashed border-border p-10 text-center">
+          <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-secondary">
+            <Palette className="h-5 w-5 text-muted-foreground" />
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No rooms yet</h3>
-          <p className="text-gray-600">Create your first room to start collaborating with others</p>
+          <h3 className="mb-1 text-base font-medium text-foreground">No rooms yet</h3>
+          <p className="max-w-xs text-sm text-muted-foreground">
+            Create a room to start collaborating, or join one with a link someone shared with you.
+          </p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="p-6 container mx-auto">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-1 tracking-tight">Your Rooms</h2>
-        <p className="text-gray-600">
-          You have {rooms.length} room{rooms.length !== 1 ? "s" : ""}
-        </p>
-      </div>
+    <div className="container mx-auto px-6 py-10">
+      <PageHeading firstName={firstName} count={rooms.length} />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {rooms.map((room, index) => {
-          const accent = ACCENTS[index % ACCENTS.length]
-          return (
-            <Link
-              key={room.id}
-              href={`/room/${room.roomName}`}
-              className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-100 hover:border-blue-200"
-            >
-              <div className={cn("h-1.5 w-full bg-gradient-to-r", accent)} />
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div
-                    className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-white",
-                      accent,
-                    )}
-                  >
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <Badge variant="secondary" className="gap-1">
-                    <Users className="w-3 h-3" />
-                    {room.shapes?.length || 0}
-                  </Badge>
-                </div>
-
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">{room.roomName}</h3>
-                <p className="flex items-center gap-1.5 text-sm text-gray-500 mb-5">
-                  <Calendar className="w-3.5 h-3.5" />
-                  Created{" "}
-                  {formatDistanceToNow(new Date(room.createdAt || Date.now()), {
-                    addSuffix: true,
-                  })}
+      <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+        {rooms.map((room) => (
+          <Link
+            key={room.id}
+            href={`/room/${room.roomName}`}
+            className="group flex items-center justify-between gap-4 px-4 py-3.5 transition-colors hover:bg-secondary/60"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground">
+                <Palette className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-foreground">{room.roomName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {room._count?.shape ?? 0} shape{room._count?.shape === 1 ? "" : "s"} · created{" "}
+                  {formatDistanceToNow(new Date(room.createdAt || Date.now()), { addSuffix: true })}
                 </p>
-
-                <div className="flex items-center text-sm font-medium text-blue-500">
-                  Open Room
-                  <ArrowRight className="w-4 h-4 ml-1.5 group-hover:translate-x-1 transition-transform" />
-                </div>
               </div>
-            </Link>
-          )
-        })}
+            </div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+          </Link>
+        ))}
       </div>
+    </div>
+  )
+}
+
+function PageHeading({ firstName, count }: { firstName?: string; count: number }) {
+  return (
+    <div className="mb-6">
+      <h1 className="text-xl font-semibold tracking-tight text-foreground">
+        {firstName ? `${firstName}'s rooms` : "Your rooms"}
+      </h1>
+      <p className="text-sm text-muted-foreground">
+        {count === 0 ? "Nothing here yet" : `${count} room${count === 1 ? "" : "s"}`}
+      </p>
     </div>
   )
 }

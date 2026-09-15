@@ -29,6 +29,17 @@ export class DrawingEngine {
   private shapes: Shape[] = [];
   private redoStack: Shape[] = [];
   private selectedShapeIds: string[] = [];
+
+  // Own-shape undo history, kept separate from `shapes` so a collaborator's
+  // draw arriving after yours can't block your undo (see undo()).
+  private localUndoStack: Shape[] = [];
+
+  // Backing-store scale factor for crisp rendering on HiDPI/retina screens.
+  private dpr = 1;
+  // Canvas size in CSS pixels (canvas.width/height hold the scaled physical
+  // pixel size once dpr is applied, so layout math needs its own copy).
+  private cssWidth = 0;
+  private cssHeight = 0;
   
   // Drawing state
   private isDrawing = false;
@@ -56,11 +67,16 @@ export class DrawingEngine {
   } | null = null;
   private isMovingSelection = false;
   private hasMovedSelection = false;
-  
+
+  // Last point sampled while erasing, so a drag can be swept for shapes
+  // instead of only testing each mousemove's single landing point.
+  private lastErasePoint: { x: number; y: number } | null = null;
+
   // Callbacks
   private onScaleChange: (scale: number) => void;
   private onSelectionChange?: (shapeIds: string[]) => void;
   private onShapeCountChange?: (count: number) => void;
+  private onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -69,7 +85,8 @@ export class DrawingEngine {
     initialShapes: RawShapeRecord[],
     onScaleChange: (scale: number) => void,
     onSelectionChange?: (shapeIds: string[]) => void,
-    onShapeCountChange?: (count: number) => void
+    onShapeCountChange?: (count: number) => void,
+    onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void
   ) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
@@ -78,6 +95,7 @@ export class DrawingEngine {
     this.onScaleChange = onScaleChange;
     this.onSelectionChange = onSelectionChange;
     this.onShapeCountChange = onShapeCountChange;
+    this.onHistoryChange = onHistoryChange;
 
     this.setupCanvas();
     this.loadInitialShapes(initialShapes);
@@ -87,15 +105,24 @@ export class DrawingEngine {
   }
 
   private setupCanvas() {
-    this.canvas.width = window.innerWidth;
-    this.canvas.height = window.innerHeight;
-    
-    // Handle resize
-    window.addEventListener("resize", () => {
-      this.canvas.width = window.innerWidth;
-      this.canvas.height = window.innerHeight;
-      this.render();
-    });
+    this.applyCanvasSize();
+    window.addEventListener("resize", this.handleResize);
+  }
+
+  private handleResize = () => {
+    this.applyCanvasSize();
+    this.render();
+  };
+
+  private applyCanvasSize() {
+    this.dpr = window.devicePixelRatio || 1;
+    this.cssWidth = window.innerWidth;
+    this.cssHeight = window.innerHeight;
+
+    // Size the backing store in physical pixels so strokes stay crisp on
+    // HiDPI/retina screens instead of being upscaled and blurred.
+    this.canvas.width = this.cssWidth * this.dpr;
+    this.canvas.height = this.cssHeight * this.dpr;
   }
 
   private loadInitialShapes(initialShapes: RawShapeRecord[]) {
@@ -120,33 +147,39 @@ export class DrawingEngine {
     this.canvas.addEventListener("mousemove", this.handleMouseMove);
     this.canvas.addEventListener("mouseup", this.handleMouseUp);
     this.canvas.addEventListener("wheel", this.handleWheel);
-    this.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-    
+    this.canvas.addEventListener("contextmenu", this.handleContextMenu);
+
     // Keyboard shortcuts
     document.addEventListener("keydown", this.handleKeyDown);
     document.addEventListener("keyup", this.handleKeyUp);
   }
 
+  private handleContextMenu = (e: MouseEvent) => {
+    e.preventDefault();
+  };
+
   private setupSocketListeners() {
-    this.socket.addEventListener("message", (event) => {
-      const data = JSON.parse(event.data);
-      
-      switch (data.type) {
-        case "draw":
-          this.handleRemoteDraw(data);
-          break;
-        case "erase":
-          this.handleRemoteErase(data);
-          break;
-        case "move":
-          this.handleRemoteMove(data);
-          break;
-        case "select":
-          this.handleRemoteSelect();
-          break;
-      }
-    });
+    this.socket.addEventListener("message", this.handleSocketMessage);
   }
+
+  private handleSocketMessage = (event: MessageEvent) => {
+    const data = JSON.parse(event.data);
+
+    switch (data.type) {
+      case "draw":
+        this.handleRemoteDraw(data);
+        break;
+      case "erase":
+        this.handleRemoteErase(data);
+        break;
+      case "move":
+        this.handleRemoteMove(data);
+        break;
+      case "select":
+        this.handleRemoteSelect();
+        break;
+    }
+  };
 
   private handleRemoteDraw(data: WsMessage) {
     try {
@@ -168,6 +201,9 @@ export class DrawingEngine {
     try {
       const parsed = JSON.parse(data.data);
       this.shapes = this.shapes.filter(
+        shape => shape.id !== parsed.shapeId
+      );
+      this.localUndoStack = this.localUndoStack.filter(
         shape => shape.id !== parsed.shapeId
       );
       this.render();
@@ -211,6 +247,7 @@ export class DrawingEngine {
         break;
       case "eraser":
         this.isDrawing = true;
+        this.lastErasePoint = null;
         this.eraseAtPoint(point);
         break;
       case "hand":
@@ -283,6 +320,9 @@ export class DrawingEngine {
         break;
       case "pencil":
         this.finishPencilDrawing();
+        break;
+      case "eraser":
+        this.lastErasePoint = null;
         break;
     }
   };
@@ -386,10 +426,14 @@ export class DrawingEngine {
     
     const scaleAmount = -e.deltaY / 1000;
     const newScale = Math.max(0.1, Math.min(5, this.scale * (1 + scaleAmount)));
-    
-    const mouseX = e.clientX;
-    const mouseY = e.clientY;
-    
+
+    // Coordinates relative to the canvas, matching getCanvasPoint(), so
+    // zoom-to-cursor stays correct if the canvas isn't flush with the
+    // viewport's top-left corner.
+    const rect = this.canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
     // Zoom towards mouse position
     const canvasMouseX = (mouseX - this.panX) / this.scale;
     const canvasMouseY = (mouseY - this.panY) / this.scale;
@@ -510,6 +554,7 @@ export class DrawingEngine {
     });
 
     this.shapes = this.shapes.filter(shape => !this.selectedShapeIds.includes(shape.id));
+    this.localUndoStack = this.localUndoStack.filter(shape => !this.selectedShapeIds.includes(shape.id));
     this.selectedShapeIds = [];
     this.onSelectionChange?.([]);
     this.render();
@@ -545,6 +590,7 @@ export class DrawingEngine {
     const currentShape = this.shapes[this.shapes.length - 1];
     if (currentShape && currentShape.type === "pencil") {
       this.redoStack = [];
+      this.localUndoStack.push(currentShape);
       this.broadcastShape(currentShape);
     }
   }
@@ -556,7 +602,10 @@ export class DrawingEngine {
     const height = point.y - this.startY;
     
     this.ctx.save();
-    this.ctx.setTransform(this.scale, 0, 0, this.scale, this.panX, this.panY);
+    this.ctx.setTransform(
+      this.scale * this.dpr, 0, 0, this.scale * this.dpr,
+      this.panX * this.dpr, this.panY * this.dpr
+    );
     this.ctx.strokeStyle = this.strokeColor;
     this.ctx.lineWidth = this.strokeWidth;
     this.ctx.setLineDash([5, 5]);
@@ -619,6 +668,7 @@ export class DrawingEngine {
 
     this.shapes.push(shape);
     this.redoStack = [];
+    this.localUndoStack.push(shape);
     this.broadcastShape(shape);
     this.render();
   }
@@ -645,6 +695,7 @@ export class DrawingEngine {
 
     this.shapes.push(shape);
     this.redoStack = [];
+    this.localUndoStack.push(shape);
     this.broadcastShape(shape);
     this.render();
   }
@@ -669,18 +720,51 @@ export class DrawingEngine {
     
     this.shapes.push(shape);
     this.redoStack = [];
+    this.localUndoStack.push(shape);
     this.broadcastShape(shape);
     this.render();
   }
 
   private eraseAtPoint(point: { x: number; y: number }) {
-    const shapeToErase = this.getShapeAtPoint(point);
-    
-    if (shapeToErase) {
-      this.shapes = this.shapes.filter(shape => shape.id !== shapeToErase.id);
-      this.broadcastErase(shapeToErase);
-      this.render();
+    // A fast drag can jump several pixels between mousemove events, so
+    // testing only the latest point lets the cursor skip clean over a shape
+    // without ever landing inside it. Sample the whole segment since the
+    // last erase point instead of just the current one.
+    const samples = this.lastErasePoint
+      ? this.samplePointsBetween(this.lastErasePoint, point)
+      : [point];
+    this.lastErasePoint = point;
+
+    const idsToErase = new Set<string>();
+    for (const sample of samples) {
+      const shape = this.getShapeAtPoint(sample);
+      if (shape) idsToErase.add(shape.id);
     }
+
+    if (idsToErase.size === 0) return;
+
+    const erasedShapes = this.shapes.filter(shape => idsToErase.has(shape.id));
+    this.shapes = this.shapes.filter(shape => !idsToErase.has(shape.id));
+    this.localUndoStack = this.localUndoStack.filter(shape => !idsToErase.has(shape.id));
+    erasedShapes.forEach(shape => this.broadcastErase(shape));
+    this.render();
+  }
+
+  private samplePointsBetween(
+    from: { x: number; y: number },
+    to: { x: number; y: number }
+  ): { x: number; y: number }[] {
+    const distance = Math.hypot(to.x - from.x, to.y - from.y);
+    const stepSize = 5;
+    const steps = Math.max(1, Math.ceil(distance / stepSize));
+    const points: { x: number; y: number }[] = [];
+
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      points.push({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t });
+    }
+
+    return points;
   }
 
   private isPointInShape(point: { x: number; y: number }, shape: Shape): boolean {
@@ -767,6 +851,7 @@ export class DrawingEngine {
 
   private render() {
     this.onShapeCountChange?.(this.shapes.length);
+    this.onHistoryChange?.(this.canUndo(), this.canRedo());
 
     // Clear canvas
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -778,9 +863,13 @@ export class DrawingEngine {
     
     // Draw grid
     this.drawGrid();
-    
-    // Apply transform
-    this.ctx.setTransform(this.scale, 0, 0, this.scale, this.panX, this.panY);
+
+    // Apply transform: device pixel ratio first, then pan/zoom, so every
+    // draw call below can keep working in CSS-pixel/world coordinates.
+    this.ctx.setTransform(
+      this.scale * this.dpr, 0, 0, this.scale * this.dpr,
+      this.panX * this.dpr, this.panY * this.dpr
+    );
     
     // Draw all shapes
     this.shapes.forEach(shape => {
@@ -800,23 +889,23 @@ export class DrawingEngine {
     const startY = (-this.panY % gridSize);
     
     this.ctx.save();
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.ctx.strokeStyle = "#e0e0e0";
     this.ctx.lineWidth = 1;
-    
+
     // Vertical lines
-    for (let x = startX; x < this.canvas.width; x += gridSize) {
+    for (let x = startX; x < this.cssWidth; x += gridSize) {
       this.ctx.beginPath();
       this.ctx.moveTo(x, 0);
-      this.ctx.lineTo(x, this.canvas.height);
+      this.ctx.lineTo(x, this.cssHeight);
       this.ctx.stroke();
     }
-    
+
     // Horizontal lines
-    for (let y = startY; y < this.canvas.height; y += gridSize) {
+    for (let y = startY; y < this.cssHeight; y += gridSize) {
       this.ctx.beginPath();
       this.ctx.moveTo(0, y);
-      this.ctx.lineTo(this.canvas.width, y);
+      this.ctx.lineTo(this.cssWidth, y);
       this.ctx.stroke();
     }
     
@@ -880,7 +969,7 @@ export class DrawingEngine {
     const padding = 5;
     
     this.ctx.save();
-    this.ctx.strokeStyle = "#007bff";
+    this.ctx.strokeStyle = "#4f46e5";
     this.ctx.lineWidth = 2;
     this.ctx.setLineDash([5, 5]);
     
@@ -901,10 +990,10 @@ export class DrawingEngine {
     const height = this.selectionBox.endY - this.selectionBox.startY;
     
     this.ctx.save();
-    this.ctx.strokeStyle = "#007bff";
+    this.ctx.strokeStyle = "#4f46e5";
     this.ctx.lineWidth = 1;
     this.ctx.setLineDash([5, 5]);
-    this.ctx.fillStyle = "rgba(0, 123, 255, 0.1)";
+    this.ctx.fillStyle = "rgba(79, 70, 229, 0.1)";
     
     this.ctx.fillRect(this.selectionBox.startX, this.selectionBox.startY, width, height);
     this.ctx.strokeRect(this.selectionBox.startX, this.selectionBox.startY, width, height);
@@ -992,12 +1081,12 @@ export class DrawingEngine {
     const contentHeight = maxY - minY;
     const padding = 50;
 
-    const scaleX = (this.canvas.width - padding * 2) / contentWidth;
-    const scaleY = (this.canvas.height - padding * 2) / contentHeight;
+    const scaleX = (this.cssWidth - padding * 2) / contentWidth;
+    const scaleY = (this.cssHeight - padding * 2) / contentHeight;
     this.scale = Math.min(scaleX, scaleY, 2);
 
-    this.panX = (this.canvas.width - contentWidth * this.scale) / 2 - minX * this.scale;
-    this.panY = (this.canvas.height - contentHeight * this.scale) / 2 - minY * this.scale;
+    this.panX = (this.cssWidth - contentWidth * this.scale) / 2 - minX * this.scale;
+    this.panY = (this.cssHeight - contentHeight * this.scale) / 2 - minY * this.scale;
 
     this.onScaleChange(Math.round(this.scale * 100));
     this.render();
@@ -1108,15 +1197,16 @@ export class DrawingEngine {
   }
 
   public undo() {
-    const lastShape = this.shapes[this.shapes.length - 1];
+    // Pop from the user's own history, not the tail of `shapes` — a
+    // collaborator's shape can land after yours in that shared array, and
+    // undo must still target the last thing *you* drew.
+    const lastShape = this.localUndoStack.pop();
     if (!lastShape) return;
 
-    if (lastShape.userId === "current-user") {
-      this.shapes.pop();
-      this.redoStack.push(lastShape);
-      this.broadcastErase(lastShape);
-      this.render();
-    }
+    this.shapes = this.shapes.filter(shape => shape.id !== lastShape.id);
+    this.redoStack.push(lastShape);
+    this.broadcastErase(lastShape);
+    this.render();
   }
 
   public redo() {
@@ -1124,13 +1214,13 @@ export class DrawingEngine {
     if (!shape) return;
 
     this.shapes.push(shape);
+    this.localUndoStack.push(shape);
     this.broadcastShape(shape);
     this.render();
   }
 
   public canUndo(): boolean {
-    const lastShape = this.shapes[this.shapes.length - 1];
-    return !!lastShape && lastShape.userId === "current-user";
+    return this.localUndoStack.length > 0;
   }
 
   public canRedo(): boolean {
@@ -1172,6 +1262,7 @@ export class DrawingEngine {
 
       newShapes.push(newShape);
       this.shapes.push(newShape);
+      this.localUndoStack.push(newShape);
       this.broadcastShape(newShape);
     });
     
@@ -1205,14 +1296,16 @@ export class DrawingEngine {
     this.canvas.removeEventListener("mousemove", this.handleMouseMove);
     this.canvas.removeEventListener("mouseup", this.handleMouseUp);
     this.canvas.removeEventListener("wheel", this.handleWheel);
-    
+    this.canvas.removeEventListener("contextmenu", this.handleContextMenu);
+
     document.removeEventListener("keydown", this.handleKeyDown);
     document.removeEventListener("keyup", this.handleKeyUp);
-    
-    window.removeEventListener("resize", () => {
-      this.canvas.width = window.innerWidth;
-      this.canvas.height = window.innerHeight;
-      this.render();
-    });
+
+    window.removeEventListener("resize", this.handleResize);
+
+    // The socket outlives the engine (it's owned by the React component),
+    // so this listener must be removed explicitly or every remount would
+    // pile up another one, handling each remote message multiple times.
+    this.socket.removeEventListener("message", this.handleSocketMessage);
   }
 }

@@ -45,17 +45,12 @@ export function CreateRoomForm() {
         body: JSON.stringify(values),
       });
 
-      if (!response.ok) {
-        throw new Error("Something went wrong!");
-      }
-
       const responseData = await response.json();
 
-      if (responseData.error) {
-        setError(responseData.error);
+      if (!response.ok || responseData.error) {
+        setError(responseData.error || "Something went wrong!");
       } else {
-        console.log(responseData);
-        setSuccessRoom(values.roomName); 
+        setSuccessRoom(values.roomName);
       }
     } catch (err) {
       setError((err as Error).message || "Unexpected error occurred");
@@ -99,15 +94,11 @@ export function CreateRoomForm() {
           </form>
         </Form>
         {successRoom && (
-          <div className="mt-4 p-4 bg-green-100 text-green-800 rounded-md">
+          <div className="mt-4 rounded-md bg-primary/10 p-4 text-sm text-primary">
             Room created successfully!{" "}
-
-              <a href={`/room/${successRoom}`} className="font-semibold text-blue-600 hover:underline">
-                <div className="flex items-center hover:underline">
-                Go to /room/{successRoom}
-                </div>
-              </a>
-
+            <a href={`/room/${successRoom}`} className="font-semibold underline-offset-2 hover:underline">
+              Go to /room/{successRoom}
+            </a>
           </div>
         )}
       </CardContent>

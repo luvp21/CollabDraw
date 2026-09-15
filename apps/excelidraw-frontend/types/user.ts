@@ -11,5 +11,5 @@ export interface Room {
   roomName: string
   userId: string
   createdAt?: string
-  shapes?: any[]
+  _count?: { shape: number }
 }
